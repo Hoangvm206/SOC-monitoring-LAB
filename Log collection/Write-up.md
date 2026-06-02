@@ -116,7 +116,7 @@ Custom Rules được triển khai trong:
 ```text
 /var/ossec/etc/rules/test_rules.xml
 ```
-![alt text](image.png)
+![alt text](imageH.png)
 ---
 
 # Attack Simulation & Detection Validation
