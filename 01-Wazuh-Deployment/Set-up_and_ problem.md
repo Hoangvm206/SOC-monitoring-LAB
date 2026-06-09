@@ -1,150 +1,154 @@
-# SOC Lab Deployment: Wazuh SIEM Integration & VirtualBox Network Troubleshooting
+# Triển khai SOC Lab: Tích hợp Wazuh SIEM và Khắc phục sự cố mạng trên VirtualBox
 
-## Overview
+## Tổng quan
 
-This project documents the deployment of a small Security Operations Center (SOC) Lab designed for centralized log collection, analysis, and endpoint monitoring using the open-source Wazuh SIEM platform.
+Dự án này ghi lại quá trình triển khai một môi trường Security Operations Center (SOC) Lab thu nhỏ nhằm phục vụ việc thu thập log tập trung, giám sát Endpoint và phân tích sự kiện an ninh bằng nền tảng mã nguồn mở Wazuh SIEM.
 
-### Architecture
+### Kiến trúc hệ thống
 
 ```text
 +------------------------+
-|   Wazuh SIEM Server    |
-| Ubuntu Server 22.04    |
-| Wazuh 4.9.2            |
+|    Wazuh SIEM Server   |
+|    Ubuntu Server       |
+|      Wazuh 4.9.2       |
 +-----------+------------+
             |
             |
-    Host-Only Network
-   (192.168.56.0/24)
+     Host-Only Network
+      192.168.56.0/24
             |
             |
 +-----------+------------+
-|     Windows 10 VM      |
-|     Wazuh Agent        |
-|       4.9.2            |
+|      Windows 10 VM     |
+|      Wazuh Agent       |
+|         4.9.2          |
 +------------------------+
 ```
 
-### Components
+### Thành phần triển khai
 
-| Component       | Description                               |
-| --------------- | ----------------------------------------- |
-| SIEM Server     | Ubuntu Server 22.04 running Wazuh 4.9.2   |
-| Wazuh Manager   | Receives logs and manages agents          |
-| Wazuh Indexer   | Stores and indexes collected logs         |
-| Wazuh Dashboard | Web interface for monitoring and analysis |
-| Endpoint        | Windows 10 Enterprise LTSC                |
-| Wazuh Agent     | Collects and forwards logs to the Manager |
+| Thành phần      | Mô tả                                |
+| --------------- | ------------------------------------ |
+| SIEM Server     | Ubuntu Server 22.04 chạy Wazuh 4.9.2 |
+| Wazuh Manager   | Tiếp nhận log và quản lý Agent       |
+| Wazuh Indexer   | Lưu trữ và lập chỉ mục log           |
+| Wazuh Dashboard | Giao diện giám sát và phân tích      |
+| Endpoint        | Windows 10 Enterprise LTSC           |
+| Wazuh Agent     | Thu thập và gửi log về Manager       |
 
 ---
 
-# Troubleshooting Log
+# Nhật ký xử lý sự cố
 
-The deployment process involved several networking and system compatibility issues. The following section summarizes the root causes and resolutions.
+Trong quá trình triển khai, hệ thống gặp nhiều vấn đề liên quan đến mạng và khả năng tương thích. Dưới đây là các lỗi thực tế đã gặp cùng nguyên nhân và cách khắc phục.
 
-## Issue 1: Missing `ossec.conf` After Silent Installation
+## Sự cố 1: Mất file `ossec.conf` sau khi cài đặt Silent Install
 
-### Symptoms
+### Hiện tượng
 
-* Wazuh Agent installation completed successfully.
-* Windows service `WazuhSvc` was running.
-* Dashboard displayed:
+* Wazuh Agent cài đặt thành công.
+* Dịch vụ `WazuhSvc` hoạt động bình thường.
+* Dashboard hiển thị:
 
 ```text
 No agents were added
 ```
 
-* Configuration file `ossec.conf` was missing.
+* Không tìm thấy file cấu hình `ossec.conf`.
 
-### Root Cause
+### Nguyên nhân
 
-Silent installation using the `/q` parameter caused Windows Installer to complete without properly generating the required configuration files. In some cases, files may be redirected to VirtualStore or remain incomplete due to previous installations.
+Việc sử dụng tham số cài đặt ẩn `/q` khiến Windows Installer hoàn tất quá trình cài đặt nhưng không tạo đầy đủ các file cấu hình cần thiết. Trong một số trường hợp, file có thể bị chuyển hướng vào VirtualStore hoặc bị lỗi do dữ liệu từ lần cài đặt trước.
 
-### Resolution
+### Giải pháp
 
-1. Completely uninstall the agent.
-2. Remove any remaining agent files.
-3. Reinstall using the graphical installation wizard.
-4. Verify that:
+1. Gỡ bỏ hoàn toàn Wazuh Agent.
+2. Xóa các thư mục còn sót lại.
+3. Tiến hành cài đặt lại bằng giao diện Wizard.
+4. Kiểm tra thư mục:
 
 ```text
 C:\Program Files (x86)\ossec-agent\
 ```
 
-contains the generated configuration files.
+để xác nhận file cấu hình đã được tạo.
 
 ---
 
-## Issue 2: Enrollment Failure Due to Localhost Configuration
+## Sự cố 2: Không thể đăng ký Agent do cấu hình Localhost
 
-### Symptoms
+### Hiện tượng
 
-Agent logs reported:
+Log Agent xuất hiện lỗi:
 
 ```text
 Unable to connect to enrollment service at [127.0.0.1]:1515
 ```
 
-### Root Cause
+### Nguyên nhân
 
-The VirtualBox NAT Port Forwarding configuration used:
+Trong cấu hình Port Forwarding của VirtualBox, trường:
 
 ```text
 Host IP = 127.0.0.1
 ```
 
-This restricted listening to the host machine's loopback interface only. The Windows VM could not reach the Ubuntu server through this address.
+được thiết lập, khiến VirtualBox chỉ lắng nghe trên loopback của máy chủ vật lý.
 
-### Resolution
+Máy ảo Windows không thể truy cập dịch vụ Wazuh Manager thông qua địa chỉ này.
 
-1. Remove the Host IP value from Port Forwarding rules.
-2. Determine the NAT Gateway address:
+### Giải pháp
+
+1. Xóa giá trị Host IP trong cấu hình Port Forwarding.
+2. Xác định địa chỉ Gateway của mạng NAT:
 
 ```text
 10.0.2.2
 ```
 
-3. Configure the agent to connect to:
+3. Cập nhật file cấu hình Agent:
 
 ```xml
 <address>10.0.2.2</address>
 ```
 
-4. Re-enroll the agent.
+4. Thực hiện đăng ký Agent lại.
 
 ---
 
-## Issue 3: Agent Appears Registered but Never Connects
+## Sự cố 3: Agent đăng ký thành công nhưng không kết nối
 
-### Symptoms
+### Hiện tượng
 
-* Agent successfully enrolled.
-* Agent visible in Dashboard.
-* Status remained:
+* Agent đã được đăng ký.
+* Dashboard hiển thị Agent.
+* Trạng thái luôn ở:
 
 ```text
 Never connected
 ```
 
-or
+hoặc
 
 ```text
 Disconnected
 ```
 
-### Root Cause
+### Nguyên nhân
 
-The default Docker configuration exposed:
+File `docker-compose.yml` mặc định chỉ mở:
 
 ```yaml
 1514-1515:1514-1515/tcp
 ```
 
-However, Wazuh Agents may send keep-alive messages through UDP 1514 depending on configuration. Since UDP 1514 was not exposed, packets were dropped before reaching the Manager.
+Trong khi Wazuh Agent có thể sử dụng UDP 1514 để gửi gói tin Keep-Alive.
 
-### Resolution
+Do Docker chưa mở UDP 1514 nên các gói tin bị loại bỏ trước khi tới Wazuh Manager.
 
-Modify the Wazuh Manager service in `docker-compose.yml`:
+### Giải pháp
+
+Chỉnh sửa phần cấu hình của Wazuh Manager:
 
 ```yaml
 ports:
@@ -153,7 +157,7 @@ ports:
   - "1515:1515/tcp"
 ```
 
-Restart the stack:
+Khởi động lại hệ thống:
 
 ```bash
 docker compose down
@@ -162,119 +166,120 @@ docker compose up -d
 
 ---
 
-## Issue 4: Migrating to Host-Only Networking
+## Sự cố 4: Chuyển đổi sang mạng Host-Only
 
-### Symptoms
+### Hiện tượng
 
-Although enrollment succeeded, communication over VirtualBox NAT remained unstable and agents frequently disconnected.
+Mặc dù Agent đăng ký thành công nhưng kết nối thông qua NAT thường xuyên mất ổn định và Agent liên tục bị ngắt kết nối.
 
-### Root Cause
+### Nguyên nhân
 
-NAT and Port Forwarding introduced additional complexity and made troubleshooting more difficult during lab operation.
+Mạng NAT và Port Forwarding làm tăng độ phức tạp trong việc định tuyến gói tin và gây khó khăn cho quá trình vận hành Lab.
 
-### Resolution
+### Giải pháp
 
-#### Network Migration
+### Chuyển đổi hạ tầng mạng
 
-Move both virtual machines to:
+Cấu hình cả hai máy ảo sử dụng:
 
 ```text
 Host-Only Adapter
 ```
 
-Configuration:
+Thông số:
 
 ```text
 Network: 192.168.56.0/24
 Promiscuous Mode: Allow All
 ```
 
-#### Protocol Standardization
+### Chuẩn hóa giao thức truyền thông
 
-Update the agent configuration:
+Cập nhật file `ossec.conf`:
 
 ```xml
 <protocol>tcp</protocol>
 ```
 
-Using TCP provides reliable delivery and simplifies troubleshooting.
+Việc sử dụng TCP giúp tăng độ tin cậy trong quá trình truyền log và đơn giản hóa việc xử lý sự cố.
 
 ---
 
-# Final Result
+# Kết quả đạt được
 
-After reconfiguring the environment:
+Sau khi hoàn tất quá trình cấu hình:
 
-* Wazuh Agent connected successfully.
-* Communication established through:
+* Wazuh Agent kết nối thành công tới Manager.
+* Kênh truyền thông hoạt động ổn định thông qua:
 
 ```text
 192.168.56.101:1514/tcp
 ```
 
-* Agent status changed to:
+* Trạng thái Agent chuyển sang:
 
 ```text
 Active
 ```
 
-* Windows logs were successfully collected:
+* Hệ thống bắt đầu thu thập thành công:
 
   * Security Logs
   * System Logs
   * Application Logs
 
-The environment is now ready for additional telemetry sources such as Sysmon.
-![alt text](<Screenshot 2026-06-01 203625.png>)
+Môi trường đã sẵn sàng để triển khai thêm các nguồn telemetry như Sysmon trong các giai đoạn tiếp theo.
+
+> ![alt text](<Screenshot 2026-06-01 203625.png>)
 
 ---
 
-# Lessons Learned
+# Bài học kinh nghiệm
 
-## 1. Networking Is the Foundation of Security Monitoring
+## 1. Mạng máy tính là nền tảng của giám sát an ninh
 
-Understanding how packets move between systems is essential for building and maintaining monitoring infrastructure.
+Việc hiểu rõ cách gói tin di chuyển giữa các hệ thống là điều kiện tiên quyết khi xây dựng và vận hành hạ tầng giám sát.
 
-This lab provided practical experience with:
+Thông qua bài Lab này, đã có cơ hội thực hành với:
 
 * NAT
 * Port Forwarding
-* Loopback Addresses (127.0.0.1)
-* Host-Only Networks
-* TCP vs UDP Communication
+* Loopback Address (127.0.0.1)
+* Host-Only Network
+* TCP và UDP
 
 ---
 
-## 2. Log Analysis Is Critical
+## 2. Phân tích Log là kỹ năng quan trọng nhất
 
-Every troubleshooting step was guided by log analysis rather than trial-and-error.
+Mọi quyết định xử lý sự cố đều được đưa ra dựa trên việc phân tích log thay vì thử sai ngẫu nhiên.
 
-Key files included:
+Tệp log quan trọng nhất trong quá trình triển khai là:
 
 ```text
 ossec.log
 ```
 
-Carefully reviewing connection errors, enrollment messages, and protocol mismatches significantly reduced troubleshooting time.
+Việc đọc và phân tích chính xác các thông báo lỗi đã giúp xác định nhanh nguyên nhân và đưa ra hướng xử lý phù hợp.
 
 ---
 
-## 3. Never Assume Default Configurations Are Correct
+## 3. Không nên phụ thuộc hoàn toàn vào cấu hình mặc định
 
-Default configurations are designed for common deployment scenarios and may not fit a virtualized lab environment.
+Các cấu hình mặc định thường được thiết kế cho môi trường triển khai phổ biến và có thể không phù hợp với môi trường Lab ảo hóa.
 
-Successful deployment required:
+Để hệ thống hoạt động ổn định, cần thực hiện:
 
-* Adjusting Docker port mappings
-* Modifying network topology
-* Switching communication protocols
-* Verifying service compatibility
+* Điều chỉnh Port Mapping của Docker.
+* Tối ưu cấu trúc mạng.
+* Chuẩn hóa giao thức truyền thông.
+* Kiểm tra khả năng tương thích giữa các thành phần.
 
-Understanding and adapting default settings is an important skill for security engineers and SOC analysts.
+Khả năng hiểu và tùy chỉnh hệ thống là kỹ năng quan trọng đối với SOC Analyst và Security Engineer.
 
 ---
 
-# Technologies Used
+# Công nghệ sử dụng
 
 * Ubuntu Server 22.04 LTS
 * Windows 10 Enterprise LTSC
@@ -284,4 +289,4 @@ Understanding and adapting default settings is an important skill for security e
 * VirtualBox
 * Host-Only Networking
 * TCP/IP
-* Sysmon (planned integration)
+* Sysmon (triển khai ở giai đoạn tiếp theo)
